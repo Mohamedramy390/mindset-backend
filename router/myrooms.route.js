@@ -1,6 +1,6 @@
 
 import express from 'express'
-import { createRoom, enrollToRoom, getAllRooms } from '../controllers/roomController.js';
+import { createRoom, getAllRooms, getRoomsById } from '../controllers/roomController.js';
 import { addRoomValidation } from '../middlewares/roomMiddleware.js';
 import upload from '../middlewares/upload.js';
 import verifyToken from '../middlewares/verifyToken.js';
@@ -10,13 +10,8 @@ import userRoles from '../utils/userRoles.js';
 const router = express.Router(); 
 
 router.route('/')
-    .get(verifyToken,allowdTo(userRoles.STUDENT) ,getAllRooms)
-
-router.route('/:id/enroll')
-    .post(verifyToken, allowdTo(userRoles.STUDENT) ,enrollToRoom)
-
-router.route('/:id')
-    
+    .get(verifyToken,getRoomsById)
+    .post(verifyToken , allowdTo(userRoles.TEACHER) ,upload.single("file"),addRoomValidation,createRoom)
 
 
 export default router;
