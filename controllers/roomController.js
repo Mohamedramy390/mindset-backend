@@ -3,7 +3,11 @@ import asyncWrapper from "../middlewares/asyncWrapper.js";
 import Room from "../models/room.model.js";
 import {ERROR, SUCCESS} from '../utils/httpStatus.js'
 import AppError from "../utils/appError.js";
-import User from '../models/user.model.js'
+import User from '../models/user.model.js';
+import Doc from '../models/doc.model.js';
+import { processPDFEmbedding } from "../utils/pdfEmbedding.js";
+import { askAI } from "../sevices/askAi.js";
+
 
 
 const getAllRooms = asyncWrapper(
@@ -25,6 +29,22 @@ const createRoom = asyncWrapper(
             documents: req.file ? req.file.path : null
         })
         await newRoom.save();
+
+        const { text, embedding } = await processPDFEmbedding(req.file.path);
+
+        const doc = await new Doc({
+            roomId: newRoom._id,
+            content: text,
+            embedding,
+            createdAt: new Date(),
+        });
+        await doc.save()
+        console.log(doc)
+
+        console.log("✅ Embedding saved for room:", newRoom._id);
+           
+        
+        
         const teacherId = req.curUser.id;
         await User.findByIdAndUpdate(
         teacherId,
@@ -62,14 +82,18 @@ const enrollToRoom = asyncWrapper(
     }
 )
 
-const question = (req, res) => {
-    // question - pdf
-    // const response = ai(question - pdf)
-    // res(response)
+const question = async (req, res) => {
+    const roomId = req.params.id;
+    const query = req.body.query;
+    const doc = await Doc.findOne({roomId});
+    const aiResponse = await askAI(query, doc.embedding)
+    console.log(aiResponse);
+    res.status(200).json({status: SUCCESS, message: aiResponse})
 }
 export {
     getAllRooms,
     createRoom,
     getRoomsById,
-    enrollToRoom
+    enrollToRoom,
+    question
 }

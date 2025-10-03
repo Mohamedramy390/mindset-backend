@@ -7,7 +7,19 @@ const roomSchema = new mongoose.Schema({
   documents:{
     type: String,
     require: true
+  },
+  isEmbedded: {
+    type: Boolean,
+    default: false
+  },
+  embeddingMetadata: {
+    chunksCount: { type: Number },
+    textLength: { type: Number },
+    processedAt: { type: Date },
+    fileName: { type: String }
   }
+}, {
+  timestamps: true
 });
 
 export default mongoose.model("Room", roomSchema);

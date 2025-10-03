@@ -11,7 +11,7 @@ const router = express.Router();
 
 router.route('/')
     .get(verifyToken,getRoomsById)
-    .post(verifyToken , allowdTo(userRoles.TEACHER) ,upload.single("file"),addRoomValidation,createRoom)
+    .post(verifyToken , allowdTo(userRoles.TEACHER) ,upload.single("file"),addRoomValidation, createRoom)
 
 
 export default router;

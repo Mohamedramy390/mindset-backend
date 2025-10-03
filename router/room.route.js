@@ -1,6 +1,6 @@
 
 import express from 'express'
-import { createRoom, enrollToRoom, getAllRooms } from '../controllers/roomController.js';
+import { createRoom, enrollToRoom, getAllRooms, question } from '../controllers/roomController.js';
 import { addRoomValidation } from '../middlewares/roomMiddleware.js';
 import upload from '../middlewares/upload.js';
 import verifyToken from '../middlewares/verifyToken.js';
@@ -15,7 +15,9 @@ router.route('/')
 router.route('/:id/enroll')
     .post(verifyToken, allowdTo(userRoles.STUDENT) ,enrollToRoom)
 
+
 router.route('/:id')
+    .post(question)
     
 
 
