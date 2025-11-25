@@ -18,8 +18,11 @@ const PORT = 4000;
 
 
 // CORS configuration
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
-app.use(cors());
+app.use(cors({
+  origin: "http://localhost:3000", // or "*" for all origins
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  credentials: true // if you send cookies
+}));
 
 app.use(express.json())
 app.use("/uploads", express.static("uploads"));
