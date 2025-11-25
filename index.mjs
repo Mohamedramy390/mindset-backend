@@ -19,7 +19,7 @@ const PORT = 4000;
 
 // CORS configuration
 app.use(cors({
-  origin: "http://localhost:3000", // or "*" for all origins
+  origin: "*", // or "*" for all origins
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true // if you send cookies
 }));
