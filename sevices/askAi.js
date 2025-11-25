@@ -31,7 +31,7 @@ export async function askAI(query, queryEmbedding) {
     const context = results.map(doc => doc.content).join("\n\n");
 
     // Step 3: Send to Flask API
-    const response = await axios.post("http://localhost:5001/generate", {
+    const response = await axios.post("https://ai-service-production-d353.up.railway.app/generate", {
       query,
       embedding: queryEmbedding,
       context,
@@ -40,6 +40,39 @@ export async function askAI(query, queryEmbedding) {
     return response.data.answer;
   } catch (err) {
     console.error("Error in askAI:", err.message);
+    throw err;
+  }
+}
+
+// This function is now much simpler and correct
+export async function getTopicsAI(text) {
+  try {
+    // Step 1: Send the context (the text of the new doc)
+    // directly to the Flask API.
+    const response = await axios.post("https://ai-service-production-d353.up.railway.app/topics", {
+      context: text, // Use the text you passed in
+    });
+
+    return response.data.topics;
+  } catch (err) {
+    console.error("Error in getTopicsAI:", err.message);
+    throw err;
+  }
+}
+
+export async function categorizeQueryAI(query, topics) {
+  try {
+    // Step 1: Send the query and the list of topics to the Flask API
+    const response = await axios.post("https://ai-service-production-d353.up.railway.app/categorize", {
+      query,
+      topics,
+    });
+
+    // Step 2: Return the single related topic identified by the AI
+    return response.data.related_topic;
+  } catch (err) {
+    console.error("Error in categorizeQueryAI:", err.message);
+    // Re-throw the error to be handled by the calling function
     throw err;
   }
 }

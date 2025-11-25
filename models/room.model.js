@@ -17,7 +17,12 @@ const roomSchema = new mongoose.Schema({
     textLength: { type: Number },
     processedAt: { type: Date },
     fileName: { type: String }
-  }
+  },
+  topicQuestionCount: {
+    type: Map,
+    of: Number,
+    default: {}
+  } 
 }, {
   timestamps: true
 });

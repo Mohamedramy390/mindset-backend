@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express from 'express'
+import cors from 'cors'
 import mongoose from 'mongoose';
 import {ERROR} from './utils/httpStatus.js'
 import roomRouter from './router/room.route.js'
@@ -15,6 +16,10 @@ const app = express();
 const PORT = 4000;
 
 
+
+// CORS configuration
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+app.use(cors());
 
 app.use(express.json())
 app.use("/uploads", express.static("uploads"));

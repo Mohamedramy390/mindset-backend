@@ -6,10 +6,18 @@ import appError from '../utils/appError.js'
 import { ERROR, FAIL, SUCCESS } from '../utils/httpStatus.js'
 import generateJWT from '../utils/generateJWT.js'
 import AppError from '../utils/appError.js'
+import { validationResult } from 'express-validator'
 
 const register = asyncWrapper(
     async (req, res, next) => {
         const {firstName , secondName, email, password, role} = req.body;
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            // Get the first error message for simplicity
+            const firstError = errors.array()[0].msg;
+            const err = new AppError(firstError, 400, FAIL);
+            return next(err);
+        }
         const oldUser = await User.findOne({email})
         if(oldUser){
             const err = new AppError("Email already exist", 400, FAIL);
