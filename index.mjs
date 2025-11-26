@@ -19,9 +19,10 @@ const PORT = 4000;
 
 // CORS configuration
 app.use(cors({
-  origin: "*", // or "*" for all origins
+  // You must list the EXACT URLs of your frontend here
+  origin: ["http://localhost:3000", "https://mindset-frontend.vercel.app"], 
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  credentials: true // if you send cookies
+  credentials: true 
 }));
 
 app.use(express.json())
