@@ -20,7 +20,7 @@ const PORT = 4000;
 // CORS configuration
 app.use(cors({
   // You must list the EXACT URLs of your frontend here
-  origin: ["http://localhost:3000", "https://mindset-ai.netlify.app/"], 
+  origin: ["http://localhost:3000", "https://mindset-ai.netlify.app"], 
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true 
 }));
