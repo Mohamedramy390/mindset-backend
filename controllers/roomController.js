@@ -92,7 +92,11 @@ const createRoom = asyncWrapper(async (req, res, next) => {
 
     // ✅ 8. Initialize topicQuestionCount
     const initialTopicCounts = Array.isArray(topics)
-      ? topics.reduce((acc, topic) => ({ ...acc, [topic]: 0 }), {})
+      ? topics.reduce((acc, topic) => {
+          // FIX: Replace dots with underscores to satisfy Mongoose
+          const safeTopic = topic.replace(/\./g, "_"); 
+          return { ...acc, [safeTopic]: 0 };
+        }, {})
       : {};
 
     // ✅ 9. Update Room
