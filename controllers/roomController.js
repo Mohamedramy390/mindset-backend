@@ -27,80 +27,117 @@ const createRoom = asyncWrapper(async (req, res, next) => {
     return next(new AppError(err.array()[0].msg, 400, ERROR));
   }
 
-  // ✅ 2. Ensure file is uploaded
+  // ✅ 2. Ensure file is uploaded LOCALLY
   if (!req.file || !req.file.path) {
     return next(new AppError("No file uploaded", 400, ERROR));
   }
 
   let newRoom = null;
+  const localFilePath = req.file.path; // Path on disk
 
   try {
-    const absolutePath = path.resolve(req.file.path);
-    console.log("📂 Uploaded file:", absolutePath);
+    console.log("📂 Local File Uploaded:", localFilePath);
 
-    if (!fs.existsSync(absolutePath)) {
-      return next(new AppError(`File not found at path: ${absolutePath}`, 500, ERROR));
-    }
+    // ✅ 3. Process PDF (LOCALLY)
+    // Now we can read the file directly from disk, no download needed!
+    console.log("🚀 Starting Local PDF Processing...");
+    const { text, embedding } = await processPDFEmbedding(localFilePath);
+    console.log("✅ PDF Processed. Text length:", text?.length, "Embedding length:", embedding?.length);
 
-    // ✅ 3. Process PDF to get text + embedding
-    const { text, embedding } = await processPDFEmbedding(absolutePath);
     if (!text || !embedding) {
       return next(new AppError("Failed to process uploaded PDF file", 500, ERROR));
     }
 
-    // ✅ 4. Create Room (initial)
-    // We create it first without topicQuestionCount
+    // ✅ 4. Upload to Cloudinary (Manually)
+    // We import cloudinary v2 here to ensure we use it
+    const { v2: cloudinary } = await import('cloudinary');
+
+    // Ensure config is loaded
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
+    });
+
+    const uploadResult = await cloudinary.uploader.upload(localFilePath, {
+      folder: 'mindset-uploads',
+      resource_type: 'auto', // 'auto' is better for PDFs than 'raw' (allows viewing in browser)
+      type: 'upload',        // This explicitly makes it Public (Default)
+      access_mode: 'public'  // explicit public access
+    });
+
+    const fileUrl = uploadResult.secure_url;
+
+    // ✅ 5. Create Room
     newRoom = new Room({
       ...req.body,
-      documents: req.file.path,
+      documents: fileUrl, // Saves the Cloudinary URL
     });
-    await newRoom.save(); // Save to get newRoom._id
+    await newRoom.save();
 
-    // ✅ 5. Create associated Doc record
+    // ✅ 6. Create associated Doc record
     const doc = new Doc({
       roomId: newRoom._id,
       content: text,
       embedding,
       createdAt: new Date(),
     });
-    await doc.save(); // <-- Document is saved here
+    await doc.save();
 
     console.log("✅ Embedding saved for room:", newRoom._id);
 
-    // ✅ 6. Get AI-generated topics (AFTER saving the doc)
+    // ✅ 7. Get AI-generated topics
     const topics = await getTopicsAI(text);
     console.log("🧠 Topics detected:", topics);
 
-    // ✅ 7. Initialize topicQuestionCount safely
+    // ✅ 8. Initialize topicQuestionCount
     const initialTopicCounts = Array.isArray(topics)
       ? topics.reduce((acc, topic) => ({ ...acc, [topic]: 0 }), {})
       : {};
 
-    // ✅ 8. Update Room with topics and get the final version
+    // ✅ 9. Update Room
     const updatedRoom = await Room.findByIdAndUpdate(
       newRoom._id,
       { $set: { topicQuestionCount: initialTopicCounts } },
-      { new: true } // 'new: true' returns the modified document
+      { new: true }
     );
 
-    // ✅ 9. Link room to the teacher’s account
+    // ✅ 10. Link to Teacher
     const teacherId = req.curUser?.id;
     if (teacherId) {
       await User.findByIdAndUpdate(
         teacherId,
-        { $push: { rooms: updatedRoom._id } }, // Use updatedRoom._id
+        { $push: { rooms: updatedRoom._id } },
         { new: true }
       );
     }
 
-    // ✅ 10. Send response
+    // ✅ 11. Cleanup Local File
+    try {
+      if (fs.existsSync(localFilePath)) {
+        fs.unlinkSync(localFilePath);
+        console.log("🧹 Local file cleaned up.");
+      }
+    } catch (cleanupErr) {
+      console.error("⚠️ Failed to cleanup local file:", cleanupErr);
+    }
+
+    // ✅ 12. Send response
     res.status(201).json({
       status: SUCCESS,
-      data: { room: updatedRoom }, // Send the fully updated room
+      data: { room: updatedRoom },
     });
   } catch (error) {
     console.error("❌ Error creating room:", error);
-    // If something failed, try to clean up the room if it was created
+
+    // Cleanup local file on error too
+    try {
+      if (fs.existsSync(localFilePath)) {
+        fs.unlinkSync(localFilePath);
+      }
+    } catch (e) { /* ignore */ }
+
+    // If room was created but something else failed, clean it up
     if (newRoom && newRoom._id) {
       await Room.findByIdAndDelete(newRoom._id);
     }
@@ -112,6 +149,11 @@ const getRoomsById = asyncWrapper(
   async (req, res, next) => {
     const id = req.curUser.id;
     const user = await User.findById(id);
+
+    if (!user) {
+      return next(new AppError("User not found", 404, ERROR));
+    }
+
     const rooms = await Room.find({ _id: { $in: user.rooms } })
     res.json({ status: SUCCESS, data: { rooms } })
   }

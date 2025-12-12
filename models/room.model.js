@@ -3,10 +3,10 @@ import mongoose from "mongoose";
 
 const roomSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  topic: { type: String, require: true },
-  documents:{
+  topic: { type: String, required: true },
+  documents: {
     type: String,
-    require: true
+    required: true
   },
   isEmbedded: {
     type: Boolean,
@@ -22,7 +22,7 @@ const roomSchema = new mongoose.Schema({
     type: Map,
     of: Number,
     default: {}
-  } 
+  }
 }, {
   timestamps: true
 });

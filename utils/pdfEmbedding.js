@@ -5,7 +5,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 /**
- * Extract text from a PDF file
+ * 1. Extract text from LOCAL PDF file path
+ * (This works perfectly with your new Hybrid/Multer workflow)
  */
 export async function extractTextFromPDF(pdfPath) {
   return new Promise((resolve, reject) => {
@@ -19,18 +20,17 @@ export async function extractTextFromPDF(pdfPath) {
 }
 
 /**
- * Generate embedding from Hugging Face API using feature extraction
+ * 2. Generate Embedding
+ * REMOVED: The "fake" local embedding fallback.
  */
 export async function generateEmbedding(text) {
   try {
-    // First try with a working embedding model
+    // Retry logic could be added here, but for now, we just call the API
     const response = await axios.post(
       "https://api-inference.huggingface.co/models/intfloat/e5-small-v2",
       {
         inputs: text,
-        options: { 
-          wait_for_model: true
-        }
+        options: { wait_for_model: true } // Important: waits if model is "cold"
       },
       {
         headers: {
@@ -39,52 +39,43 @@ export async function generateEmbedding(text) {
         },
       }
     );
-    
-    console.log("✅ Successfully generated embedding with e5-small-v2");
-    return response.data[0];
-    
-  } catch (error) {
-    console.log("⚠️ Primary model failed, using local embedding generation...");
-    
-    // Generate a deterministic embedding based on text content
-    const embedding = generateLocalEmbedding(text);
-    return embedding;
-  }
-}
 
-/**
- * Generate a local deterministic embedding from text
- */
-function generateLocalEmbedding(text) {
-  const words = text.toLowerCase().split(/\s+/).filter(word => word.length > 0);
-  const embedding = new Array(384).fill(0);
-  
-  // Create embedding based on word characteristics
-  words.forEach((word, wordIndex) => {
-    for (let i = 0; i < word.length && i < embedding.length; i++) {
-      const char = word.charCodeAt(i);
-      const position = (wordIndex * 7 + i * 13) % embedding.length;
-      embedding[position] += Math.sin(char / 127.0) * (1.0 / (wordIndex + 1)) * 0.1;
+    if (response.data && response.data.error) {
+        throw new Error(`HF Error: ${response.data.error}`);
     }
-  });
-  
-  // Normalize the embedding
-  const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
-  if (magnitude > 0) {
-    return embedding.map(val => val / magnitude);
+
+    console.log("✅ Successfully generated embedding");
+    
+    // The API returns the array directly, or an array of arrays. 
+    // Usually for 1 input, it's response.data (array of numbers) or response.data[0]
+    // Check if it's flat or nested:
+    const embedding = Array.isArray(response.data) ? response.data : null;
+    
+    // Handle case where API returns nested array [ [0.1, 0.2...] ]
+    if (embedding && Array.isArray(embedding[0])) {
+        return embedding[0];
+    }
+    return embedding;
+
+  } catch (error) {
+    console.error("❌ AI Model Failed:", error.message);
+    
+    // CRITICAL: Throw the error! 
+    // Do not return fake data. Let the Controller catch this and tell the user "Try again".
+    throw new Error("AI Service is currently overloaded or unavailable. Please try again in a moment.");
   }
-  
-  return embedding;
 }
 
-
-
-
 /**
- * Full pipeline: PDF → Text → Embedding
+ * 3. Full pipeline
  */
 export async function processPDFEmbedding(pdfPath) {
   const text = await extractTextFromPDF(pdfPath);
-  const embedding = await generateEmbedding(text);
-  return { text, embedding };
+  
+  // Clean text: Remove extra spaces and limit length
+  // HF Free Tier often errors if text is > 2000-3000 chars
+  const cleanText = text.replace(/\s+/g, " ").trim().slice(0, 2500);
+  
+  const embedding = await generateEmbedding(cleanText);
+  return { text: cleanText, embedding };
 }
