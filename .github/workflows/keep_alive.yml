@@ -1,0 +1,16 @@
+name: Keep Alive
+
+on:
+  schedule:
+    # Run every 14 minutes
+    - cron: '*/14 * * * *'
+  workflow_dispatch: # Allows you to run it manually to test
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render App
+        run: |
+          curl -I https://airag.onrender.com/
+          # curl -I https://airag-ai-service.onrender.com/  <-- Uncomment if you have a separate Python service
