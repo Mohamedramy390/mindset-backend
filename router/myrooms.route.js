@@ -1,4 +1,3 @@
-
 import express from 'express'
 import { createRoom, getAllRooms, getRoomsById } from '../controllers/roomController.js';
 import { addRoomValidation } from '../middlewares/roomMiddleware.js';

@@ -93,10 +93,10 @@ const createRoom = asyncWrapper(async (req, res, next) => {
     // ✅ 8. Initialize topicQuestionCount
     const initialTopicCounts = Array.isArray(topics)
       ? topics.reduce((acc, topic) => {
-          // FIX: Replace dots with underscores to satisfy Mongoose
-          const safeTopic = topic.replace(/\./g, "_"); 
-          return { ...acc, [safeTopic]: 0 };
-        }, {})
+        // FIX: Replace dots with underscores to satisfy Mongoose
+        const safeTopic = topic.replace(/\./g, "_");
+        return { ...acc, [safeTopic]: 0 };
+      }, {})
       : {};
 
     // ✅ 9. Update Room
@@ -198,10 +198,9 @@ const enrollToRoom = asyncWrapper(
 const question = async (req, res) => {
   const roomId = req.params.id;
   const query = req.body.query;
-  const doc = await Doc.findOne({ roomId });
   const room = await Room.findById(roomId)
   const topics = Array.from(room.topicQuestionCount.keys())
-  const aiResponse = await askAI(query, doc.embedding)
+  const aiResponse = await askAI(query, roomId)
   const topic = await categorizeQueryAI(query, topics)
   console.log("TOPIC:", topic)
 

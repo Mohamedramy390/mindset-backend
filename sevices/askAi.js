@@ -1,78 +1,100 @@
+import { HfInference } from "@huggingface/inference";
 import axios from "axios";
-import Doc from "../models/doc.model.js"; // your schema
+import Doc from "../models/doc.model.js"; 
+import dotenv from "dotenv";
+import mongoose from "mongoose";
+
+dotenv.config();
+
+// Initialize Hugging Face for Embeddings only
+const hf = new HfInference(process.env.HU_API_KEY);
+const PYTHON_URL = process.env.AI_SERVICE_URL || "http://localhost:5001"; 
 
 /**
- * Ask AI with context from MongoDB + Gemini (via Flask).
- * @param {string} query - The user’s question.
- * @param {number[]} queryEmbedding - Pre-generated embedding array.
- * @returns {Promise<string>} AI answer from Flask.
+ * Orchestrates the RAG flow: 
+ * Node (Embed/Search) -> Python (Generate Answer)
  */
-export async function askAI(query, queryEmbedding) {
+export async function askAI(query, roomId) {
   try {
-    // Step 1: Vector search in MongoDB Atlas
+    console.log(`[askAI] Processing query: "${query}" for Room: ${roomId}`);
+
+    const roomObjectId = new mongoose.Types.ObjectId(roomId);
+
+    // 1. Generate Embedding LOCALLY in Node
+    // We use the same model here as we did for ingestion
+    const queryEmbedding = await hf.featureExtraction({
+      model: "sentence-transformers/all-MiniLM-L6-v2",
+      inputs: query,
+    });
+
+    // 2. Vector Search in MongoDB Atlas
     const results = await Doc.aggregate([
       {
         $vectorSearch: {
-          index: "vector_index",  // <- must match Atlas Vector Search index name
+          index: "vector_index", 
           path: "embedding",
           queryVector: queryEmbedding,
           numCandidates: 100,
           limit: 3,
+          // ✅ Filtering by Room ID ensures users only see their own notes
+          filter: { roomId: roomObjectId } 
         },
       },
+      {
+        $project: { content: 1, score: { $meta: "vectorSearchScore" } } 
+      }
     ]);
 
     if (!results.length) {
-        
-        throw new Error("No matching documents found for the query embedding");
+      console.log("[askAI] No matching documents found.");
+      return "I couldn't find any relevant information in the lecture notes to answer this.";
     }
 
-    // Step 2: Build context
+    // 3. Build Context String from found docs
     const context = results.map(doc => doc.content).join("\n\n");
 
-    // Step 3: Send to Flask API
-    const response = await axios.post("https://ai-service-production-d353.up.railway.app/generate", {
-      query,
-      embedding: queryEmbedding,
-      context,
+    // 4. Send to Python Flask for "Llama 3.1 Reasoning"
+    const response = await axios.post(`${PYTHON_URL}/generate`, {
+      query: query,
+      context: context
     });
 
     return response.data.answer;
+
   } catch (err) {
     console.error("Error in askAI:", err.message);
-    throw err;
+    // Return a friendly error so the frontend doesn't crash
+    return "Sorry, I am having trouble connecting to the AI brain right now.";
   }
 }
 
-// This function is now much simpler and correct
+/**
+ * Extracts topics by sending text to Python
+ */
 export async function getTopicsAI(text) {
   try {
-    // Step 1: Send the context (the text of the new doc)
-    // directly to the Flask API.
-    const response = await axios.post("https://ai-service-production-d353.up.railway.app/topics", {
-      context: text, // Use the text you passed in
+    const response = await axios.post(`${PYTHON_URL}/topics`, {
+      context: text,
     });
-
     return response.data.topics;
   } catch (err) {
     console.error("Error in getTopicsAI:", err.message);
-    throw err;
+    return []; // Return empty array on failure
   }
 }
 
+/**
+ * Categorizes query by sending data to Python
+ */
 export async function categorizeQueryAI(query, topics) {
   try {
-    // Step 1: Send the query and the list of topics to the Flask API
-    const response = await axios.post("https://ai-service-production-d353.up.railway.app/categorize", {
+    const response = await axios.post(`${PYTHON_URL}/categorize`, {
       query,
       topics,
     });
-
-    // Step 2: Return the single related topic identified by the AI
     return response.data.related_topic;
   } catch (err) {
     console.error("Error in categorizeQueryAI:", err.message);
-    // Re-throw the error to be handled by the calling function
-    throw err;
+    return "General"; // Fallback topic
   }
 }
